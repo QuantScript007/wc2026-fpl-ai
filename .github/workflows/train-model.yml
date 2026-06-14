@@ -1,0 +1,48 @@
+name: Pre-train ML Model
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'models/wc_predictor.py'
+      - 'requirements.txt'
+      - '.github/workflows/train-model.yml'
+  schedule:
+    # Train weekly to capture seasonal changes
+    - cron: '0 2 * * 0'
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Train ML model
+        run: |
+          python -c "from models.wc_predictor import WCPredictor; p = WCPredictor(); p.train()"
+      
+      - name: Upload trained model
+        uses: actions/upload-artifact@v3
+        with:
+          name: wc_model
+          path: data/wc_model.pkl
+          retention-days: 30
+      
+      - name: Commit and push model
+        if: success()
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add data/wc_model.pkl || true
+          git commit -m "ci: Update pre-trained ML model" || true
+          git push || true
