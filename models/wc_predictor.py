@@ -5,6 +5,8 @@ import numpy as np, pandas as pd, requests
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import StandardScaler
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 
 FIFA_RANKINGS = {
     "Argentina":1,"France":2,"Spain":3,"England":4,"Brazil":5,"Portugal":6,
@@ -23,7 +25,7 @@ FIFA_RANKINGS = {
 CONFED_STRENGTH = {"CONMEBOL":0.95,"UEFA":1.0,"CONCACAF":0.75,"CAF":0.70,"AFC":0.65,"OFC":0.55}
 CONFED_MAP = {
     **{t:"CONMEBOL" for t in ["Argentina","Brazil","Uruguay","Colombia","Ecuador","Paraguay","Chile","Venezuela","Bolivia","Peru"]},
-    **{t:"UEFA" for t in ["France","Spain","England","Portugal","Germany","Netherlands","Belgium","Croatia","Switzerland","Denmark","Austria","Wales","Poland","Serbia","Czechia","Czech Republic","Hungary","Scotland","Ukraine","Turkey","Turkiye","Slovenia","Slovakia","Romania","Norway","Greece","Italy","Bosnia-Herzegovina"]},
+    **{t:"UEFA" for t in ["France","Spain","England","Portugal","Germany","Netherlands","Belgium","Croatia","Switzerland","Denmark","Austria","Wales","Poland","Serbia","Czechia","Czech Republic","Hungary","Scotland","Ukraine","Turkey","Slovenia","Slovakia","Romania","Norway","Greece","Bosnia-Herzegovina"]},
     **{t:"CONCACAF" for t in ["Mexico","USA","United States","Canada","Honduras","Haiti","Jamaica","El Salvador","Curacao","Panama"]},
     **{t:"CAF" for t in ["Morocco","Senegal","Cameroon","Algeria","Nigeria","South Africa","Tunisia","Ghana","Ivory Coast","Zambia","Namibia","Egypt"]},
     **{t:"AFC" for t in ["Japan","South Korea","Iran","Saudi Arabia","Australia","Qatar","Iraq","Jordan","Bahrain","Oman"]},
@@ -37,26 +39,44 @@ MODEL_PATH   = Path("data/wc_model.pkl")
 def rank(t): return FIFA_RANKINGS.get(t,55)
 def confed_strength(t): return CONFED_STRENGTH.get(CONFED_MAP.get(t,"UEFA"),0.65)
 
+def _get_session_with_retries(retries: int = 3, backoff_factor: float = 0.5):
+    """Create a requests session with automatic retry logic."""
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET"]
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
+
 def _fetch_history():
     rows=[]; hdr={"User-Agent":"Mozilla/5.0","Accept":"application/json"}
-    for name,sid in WC_SEASONS.items():
-        try:
-            r=requests.get("https://api.fifa.com/api/v3/calendar/matches",headers=hdr,
-                params={"idCompetition":17,"idSeason":sid,"language":"en","count":100},timeout=12)
-            if not r.ok: continue
-            for m in r.json().get("Results",[]):
-                h=m.get("Home",{}); a=m.get("Away",{})
-                if not h or not a: continue
-                hs=h.get("Score",0)or 0; as_=a.get("Score",0)or 0
-                hn=(h.get("TeamName")or[{}])[0].get("Description","")
-                an=(a.get("TeamName")or[{}])[0].get("Description","")
-                if not hn or not an: continue
-                rows.append({"home_rank":rank(hn),"away_rank":rank(an),"rank_diff":rank(an)-rank(hn),
-                    "home_conf":confed_strength(hn),"away_conf":confed_strength(an),
-                    "conf_diff":confed_strength(hn)-confed_strength(an),
-                    "home_host":1 if hn in HOST_NATIONS else 0,
-                    "label":0 if hs>as_ else(1 if hs==as_ else 2)})
-        except Exception as e: print(f"[ML] {name}: {e}")
+    session = _get_session_with_retries()
+    try:
+        for name,sid in WC_SEASONS.items():
+            try:
+                r=session.get("https://api.fifa.com/api/v3/calendar/matches",headers=hdr,
+                    params={"idCompetition":17,"idSeason":sid,"language":"en","count":100},timeout=12)
+                if not r.ok: continue
+                for m in r.json().get("Results",[]):
+                    h=m.get("Home",{}); a=m.get("Away",{})
+                    if not h or not a: continue
+                    hs=h.get("Score",0)or 0; as_=a.get("Score",0)or 0
+                    hn=(h.get("TeamName")or[{}])[0].get("Description","")
+                    an=(a.get("TeamName")or[{}])[0].get("Description","")
+                    if not hn or not an: continue
+                    rows.append({"home_rank":rank(hn),"away_rank":rank(an),"rank_diff":rank(an)-rank(hn),
+                        "home_conf":confed_strength(hn),"away_conf":confed_strength(an),
+                        "conf_diff":confed_strength(hn)-confed_strength(an),
+                        "home_host":1 if hn in HOST_NATIONS else 0,
+                        "label":0 if hs>as_ else(1 if hs==as_ else 2)})
+            except Exception as e: print(f"[ML] {name}: {e}")
+    finally:
+        session.close()
     return rows
 
 
@@ -84,8 +104,12 @@ class WCPredictor:
 
     def load_or_train(self):
         if MODEL_PATH.exists():
-            with open(MODEL_PATH,"rb") as f: d=pickle.load(f)
-            self.clf=d["clf"]; self.scaler=d["scaler"]; self.trained=True; print("[ML] Loaded")
+            try:
+                with open(MODEL_PATH,"rb") as f: d=pickle.load(f)
+                self.clf=d["clf"]; self.scaler=d["scaler"]; self.trained=True; print("[ML] Loaded")
+            except Exception as e:
+                print(f"[ML] Model load failed: {e}, retraining...")
+                self.train()
         else: self.train()
         return self
 
