@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPL AI Analyzer</title>
+<style>
+  :root {
+    --bg: #f5f3f7; --panel: #ffffff; --ink: #1d1428; --muted: #6b6178; --line: #e6e0ec;
+    --accent: #37003c; --accent-2: #00b86b; --warn: #d97706; --bad: #dc2626;
+    --pitch: #0f7a45; --pitch-line: rgba(255,255,255,.25);
+    --fdr1: #1f7a3d; --fdr2: #5cc27a; --fdr3: #d9d4df; --fdr4: #f06a6a; --fdr5: #8f1d2c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #140f1a; --panel: #1e1726; --ink: #efe9f5; --muted: #a49bb0; --line: #332a3d;
+            --accent: #c78bd0; --fdr3: #4a4155; --pitch: #0b5c34; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: #37003c; color: #fff; padding: 14px 16px; }
+  header .row { max-width: 1100px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px;
+                align-items: center; justify-content: space-between; }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .2px; }
+  header .meta { font-size: 12px; opacity: .8; }
+  .controls { display: flex; gap: 6px; flex-wrap: wrap; }
+  .controls input { width: 120px; padding: 7px 9px; border-radius: 8px; border: 0; font: inherit; }
+  button { background: #00ff87; color: #37003c; border: 0; border-radius: 8px; padding: 7px 12px;
+           font: inherit; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .6; cursor: wait; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  nav { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 14px; }
+  nav button { background: var(--panel); color: var(--ink); border: 1px solid var(--line); font-weight: 500; white-space: nowrap; }
+  nav button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  @media (prefers-color-scheme: dark) { nav button.on { color: #140f1a; } }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 10px; }
+  .big { font-size: 26px; font-weight: 700; }
+  .muted { color: var(--muted); }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600;
+          background: var(--line); color: var(--ink); }
+  .pill.good { background: var(--accent-2); color: #fff; } .pill.warn { background: var(--warn); color: #fff; }
+  .pill.bad { background: var(--bad); color: #fff; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-size: 11px; text-transform: uppercase; color: var(--muted); cursor: pointer; user-select: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .scroll { overflow-x: auto; }
+  .fdr { display: inline-block; min-width: 38px; text-align: center; font-size: 11px; font-weight: 600;
+         padding: 2px 4px; border-radius: 4px; margin: 1px; }
+  .f1 { background: var(--fdr1); color: #fff; } .f2 { background: var(--fdr2); color: #0b2a15; }
+  .f3 { background: var(--fdr3); color: var(--ink); } .f4 { background: var(--fdr4); color: #fff; }
+  .f5 { background: var(--fdr5); color: #fff; }
+  .pitch { background: var(--pitch); border-radius: 12px; padding: 12px 6px; position: relative;
+           background-image: linear-gradient(var(--pitch-line) 1px, transparent 1px);
+           background-size: 100% 25%; }
+  .line { display: flex; justify-content: center; gap: 4px; margin: 8px 0; }
+  .shirt { background: #fff; color: #1d1428; border-radius: 8px; flex: 0 1 84px; min-width: 0; padding: 5px 3px;
+           text-align: center; font-size: 11px; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .shirt b { display: block; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .shirt .xp { color: #0f7a45; font-weight: 700; }
+  .shirt.flag { outline: 2px solid var(--warn); }
+  .bench { display: flex; gap: 6px; justify-content: center; margin-top: 10px; flex-wrap: wrap;
+           padding-top: 10px; border-top: 1px dashed rgba(255,255,255,.4); }
+  .bench .shirt { opacity: .85; }
+  .badge-c { background: #1d1428; color: #fff; border-radius: 50%; width: 16px; height: 16px;
+             display: inline-grid; place-items: center; font-size: 10px; margin-left: 3px; }
+  .stats { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 12px; }
+  .stats div span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; }
+  .stats div b { font-size: 18px; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .filters input, .filters select { padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--panel); color: var(--ink); font: inherit; }
+  .empty { padding: 30px; text-align: center; color: var(--muted); }
+  .transfer { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .transfer:last-child { border-bottom: 0; }
+  .out { color: var(--bad); } .in { color: var(--accent-2); font-weight: 600; }
+  .hidden { display: none; }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #1d1428;
+           color: #fff; padding: 9px 14px; border-radius: 8px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <div>
+      <h1>⚽ FPL AI Analyzer</h1>
+      <div class="meta" id="meta">Loading…</div>
+    </div>
+    <div class="controls">
+      <input id="teamId" inputmode="numeric" placeholder="Your team ID">
+      <button id="refresh">Refresh</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <nav id="tabs">
+    <button data-tab="overview" class="on">Overview</button>
+    <button data-tab="myteam">My team</button>
+    <button data-tab="optimal">Optimal squad</button>
+    <button data-tab="fixtures">Fixtures</button>
+    <button data-tab="players">Players</button>
+  </nav>
+
+  <section id="overview" class="tab"></section>
+  <section id="myteam" class="tab hidden"></section>
+  <section id="optimal" class="tab hidden"></section>
+  <section id="fixtures" class="tab hidden"></section>
+  <section id="players" class="tab hidden"></section>
+</main>
+<div id="toast" class="hidden"></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num = (v, d = 1) => v == null || isNaN(v) ? "–" : Number(v).toFixed(d);
+const money = v => v == null ? "–" : "£" + Number(v).toFixed(1) + "m";
+let DATA = null, sortKey = "xp_next", sortDir = -1;
+
+function toast(msg, ms = 3000) {
+  const t = $("#toast"); t.textContent = msg; t.classList.remove("hidden");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add("hidden"), ms);
+}
+
+function availPill(p) {
+  const a = p.availability ?? 1;
+  if (a >= 1) return "";
+  const cls = a === 0 ? "bad" : "warn";
+  return ` <span class="pill ${cls}" title="${esc(p.news)}">${Math.round(a * 100)}%</span>`;
+}
+
+function fdrChips(fixtures) {
+  if (!fixtures || !fixtures.length) return '<span class="fdr f5">BLANK</span>';
+  return fixtures.map(f => `<span class="fdr f${f.difficulty}" title="GW${f.gw}">${esc(f.opponent)}${f.home ? "" : "·a"}</span>`).join("");
+}
+
+function playerTable(rows, cols) {
+  if (!rows || !rows.length) return '<div class="empty">Nothing to show.</div>';
+  const defs = {
+    name: ["Player", p => `<b>${esc(p.name)}</b>${availPill(p)} <span class="muted">${esc(p.team_short)} ${esc(p.position)}</span>`],
+    now_cost: ["Price", p => money(p.now_cost), true], xp_next: ["xP next", p => num(p.xp_next), true],
+    xp_horizon: ["xP 5GW", p => num(p.xp_horizon), true], value: ["xP/£", p => num(p.value, 2), true],
+    selected_by: ["Owned", p => num(p.selected_by) + "%", true], form: ["Form", p => num(p.form), true],
+    next_fixture: ["Next", p => esc(p.next_fixture)],
+  };
+  return `<div class="scroll"><table><thead><tr>${cols.map(c => `<th class="${defs[c][2] ? "num" : ""}">${defs[c][0]}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map(p => `<tr>${cols.map(c => `<td class="${defs[c][2] ? "num" : ""}">${defs[c][1](p)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
+function pitch(lineup) {
+  if (!lineup) return '<div class="empty">No lineup.</div>';
+  const shirt = p => `<div class="shirt ${p.availability < 1 ? "flag" : ""}" title="${esc(p.news || "")}">
+      <b>${esc(p.name)}${p.name === lineup.captain ? '<span class="badge-c">C</span>' : p.name === lineup.vice_captain ? '<span class="badge-c">V</span>' : ""}</b>
+      ${esc(p.team_short)} · ${money(p.now_cost)}<br><span class="xp">${num(p.xp_next)} xP</span></div>`;
+  const rows = ["GKP", "DEF", "MID", "FWD"].map(pos =>
+    `<div class="line">${lineup.starters.filter(p => p.position === pos).map(shirt).join("")}</div>`).join("");
+  return `<div class="pitch">${rows}<div class="bench">${lineup.bench.map(shirt).join("")}</div></div>`;
+}
+
+function renderOverview(d) {
+  const c = d.captain || {}, ins = d.insights || {};
+  $("#overview").innerHTML = `
+    <div class="grid">
+      <div class="card"><h2>Captain pick</h2>
+        <div class="big">${esc(c.captain ?? "–")}</div>
+        <div class="muted">${num(c.score)} expected points · Vice: ${esc(c.vice_captain ?? "–")}</div>
+        ${playerTable(c.options, ["name", "xp_next", "selected_by", "next_fixture"])}
+      </div>
+      <div class="card"><h2>Differentials (&lt;10% owned)</h2>
+        ${playerTable(ins.differentials, ["name", "now_cost", "xp_horizon", "selected_by"])}</div>
+      <div class="card"><h2>Injury &amp; doubt watch</h2>
+        ${playerTable(ins.injury_watch, ["name", "selected_by", "next_fixture"])}</div>
+      <div class="card"><h2>Best value by position</h2>
+        ${["GKP", "DEF", "MID", "FWD"].map(pos => `<div class="muted" style="margin-top:6px">${pos}</div>
+          ${playerTable((ins.value_picks || {})[pos], ["name", "now_cost", "value"])}`).join("")}</div>
+      <div class="card"><h2>Most transferred in</h2>
+        ${playerTable((ins.most_transferred_in || []).slice(0, 6), ["name", "now_cost", "form"])}</div>
+      <div class="card"><h2>Most transferred out</h2>
+        ${playerTable((ins.most_transferred_out || []).slice(0, 6), ["name", "now_cost", "form"])}</div>
+    </div>`;
+}
+
+function renderMyTeam(d) {
+  const m = d.my_team;
+  if (!m) {
+    $("#myteam").innerHTML = `<div class="card empty">Enter your FPL team ID above and press Refresh.<br>
+      <span class="muted">Find it in the URL of your Points page: fantasy.premierleague.com/entry/<b>123456</b>/event/…</span></div>`;
+    return;
+  }
+  const l = m.lineup;
+  $("#myteam").innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <h2>${esc(m.team_name)} · ${esc(m.manager)}</h2>
+      <div class="stats">
+        <div><span>Overall rank</span><b>${m.overall_rank ? Number(m.overall_rank).toLocaleString() : "–"}</b></div>
+        <div><span>Points</span><b>${m.overall_points ?? "–"}</b></div>
+        <div><span>Bank</span><b>${money(m.bank)}</b></div>
+        <div><span>Team value</span><b>${money(m.team_value)}</b></div>
+        <div><span>Best XI xP</span><b>${num(l.xp_next)}</b></div>
+      </div>
+      <div><b>Advice:</b> ${esc(m.advice)}</div>
+    </div>
+    <div class="grid">
+      <div class="card"><h2>Best XI (${esc(l.formation)}) from picks after GW${m.gameweek}</h2>${pitch(l)}</div>
+      <div class="card"><h2>Transfer suggestions</h2>
+        ${m.transfers.length ? m.transfers.map(t => `<div class="transfer">
+          <div><span class="out">▼ ${esc(t.out.name)}</span> → <span class="in">▲ ${esc(t.in.name)}</span>
+            <div class="muted">${esc(t.in.team_short)} ${esc(t.in.position)} · ${money(t.in.now_cost)} · ${esc(t.in.next_fixture)}</div></div>
+          <div class="num"><b>+${num(t.gain)}</b><div class="muted">${t.cost_change >= 0 ? "+" : ""}${num(t.cost_change)}m</div></div>
+        </div>`).join("") : '<div class="empty">No affordable upgrades found.</div>'}
+        <p class="muted" style="font-size:12px">Gain = change in best-XI expected points over the planning horizon. Uses current prices; your selling price may differ.</p>
+      </div>
+      <div class="card"><h2>Flagged players</h2>${playerTable(m.flagged, ["name", "now_cost", "next_fixture"])}</div>
+    </div>`;
+}
+
+function renderOptimal(d) {
+  const o = d.optimal_squad;
+  if (!o) { $("#optimal").innerHTML = '<div class="card empty">No data yet.</div>'; return; }
+  $("#optimal").innerHTML = `
+    <div class="card">
+      <h2>Wildcard / Free Hit planner — best 15 for ${money(d.budget)}</h2>
+      <div class="stats">
+        <div><span>Formation</span><b>${esc(o.formation)}</b></div>
+        <div><span>Cost</span><b>${money(o.total_cost)}</b></div>
+        <div><span>In bank</span><b>${money(o.bank)}</b></div>
+        <div><span>xP next GW</span><b>${num(o.xp_next)}</b></div>
+        <div><span>xP ${d.horizon} GWs</span><b>${num(o.xp_horizon)}</b></div>
+      </div>
+      ${pitch(o)}
+      <p class="muted" style="font-size:12px">Solved exactly with integer programming: 2 GKP / 5 DEF / 5 MID / 3 FWD, max 3 per club, optimised for expected points over the next ${d.horizon} gameweeks.</p>
+    </div>`;
+}
+
+function renderFixtures(d) {
+  const t = (d.insights || {}).fixture_ticker || [];
+  $("#fixtures").innerHTML = `<div class="card"><h2>Fixture ticker — easiest first</h2>
+    <div class="scroll"><table><thead><tr><th>Team</th><th class="num">Avg FDR</th><th>Next ${d.horizon} GWs</th></tr></thead>
+    <tbody>${t.map(r => `<tr><td><b>${esc(r.team_short)}</b></td><td class="num">${num(r.fdr_avg, 2)}</td>
+      <td>${fdrChips(r.fixtures)}</td></tr>`).join("")}</tbody></table></div>
+    <p class="muted" style="font-size:12px">Colours use FPL's official difficulty rating (1 easy → 5 hard). "·a" = away.</p></div>`;
+}
+
+function renderPlayers(d) {
+  const sec = $("#players");
+  if (!sec.dataset.ready) {
+    sec.innerHTML = `<div class="card"><div class="filters">
+        <input id="q" placeholder="Search player or team">
+        <select id="pos"><option value="">All positions</option><option>GKP</option><option>DEF</option><option>MID</option><option>FWD</option></select>
+        <select id="maxp"><option value="">Any price</option>${[4.5,5,5.5,6,6.5,7,8,9,10,12].map(v => `<option value="${v}">≤ £${v}m</option>`).join("")}</select>
+        <label class="muted" style="align-self:center"><input type="checkbox" id="fit"> Fit only</label>
+      </div><div id="ptable"></div></div>`;
+    ["q", "pos", "maxp", "fit"].forEach(id => $("#" + id).addEventListener("input", () => renderPlayerRows(DATA)));
+    sec.dataset.ready = 1;
+  }
+  renderPlayerRows(d);
+}
+
+function renderPlayerRows(d) {
+  const q = $("#q").value.toLowerCase(), pos = $("#pos").value, maxp = parseFloat($("#maxp").value), fit = $("#fit").checked;
+  let rows = (d.players || []).filter(p =>
+    (!q || (p.name + " " + p.full_name + " " + p.team).toLowerCase().includes(q)) &&
+    (!pos || p.position === pos) && (isNaN(maxp) || p.now_cost <= maxp) && (!fit || p.availability >= 1));
+  rows.sort((a, b) => ((a[sortKey] ?? 0) > (b[sortKey] ?? 0) ? 1 : -1) * sortDir);
+  const cols = [["name", "Player"], ["now_cost", "£"], ["xp_next", "xP next"], ["xp_horizon", "xP 5GW"],
+                ["value", "xP/£"], ["form", "Form"], ["total_points", "Pts"], ["xg", "xG"], ["xa", "xA"],
+                ["selected_by", "Own%"], ["fixtures", "Fixtures"]];
+  const cell = (p, k) => k === "name" ? `<b>${esc(p.name)}</b>${availPill(p)} <span class="muted">${esc(p.team_short)} ${esc(p.position)}</span>`
+    : k === "fixtures" ? fdrChips(p.fixtures) : k === "now_cost" ? num(p.now_cost) : num(p[k], k === "value" ? 2 : k === "total_points" ? 0 : 1);
+  $("#ptable").innerHTML = `<div class="muted" style="margin-bottom:6px">${rows.length} players</div><div class="scroll"><table>
+    <thead><tr>${cols.map(([k, l]) => `<th data-k="${k}" class="${["name","fixtures"].includes(k) ? "" : "num"}">${l}${sortKey === k ? (sortDir < 0 ? " ▼" : " ▲") : ""}</th>`).join("")}</tr></thead>
+    <tbody>${rows.slice(0, 300).map(p => `<tr>${cols.map(([k]) => `<td class="${["name","fixtures"].includes(k) ? "" : "num"}">${cell(p, k)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  $("#ptable").querySelectorAll("th[data-k]").forEach(th => th.onclick = () => {
+    const k = th.dataset.k; if (k === "fixtures") return;
+    sortDir = sortKey === k ? -sortDir : -1; sortKey = k; renderPlayerRows(DATA);
+  });
+}
+
+function render(d) {
+  DATA = d;
+  const gw = d.gameweek || {};
+  const dl = gw.next_deadline ? new Date(gw.next_deadline).toLocaleString([], {weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"}) : "–";
+  $("#meta").textContent = gw.next_gw ? `GW${gw.next_gw} · deadline ${dl} · updated ${d.updated}` : d.updated || "";
+  renderOverview(d); renderMyTeam(d); renderOptimal(d); renderFixtures(d); renderPlayers(d);
+}
+
+async function load() {
+  const r = await fetch("/api/data"); render(await r.json());
+}
+
+async function refresh() {
+  const btn = $("#refresh"), team = $("#teamId").value.trim();
+  if (team && !/^\d+$/.test(team)) return toast("Team ID should be a number");
+  try { localStorage.setItem("fplTeamId", team); } catch (e) {}
+  btn.disabled = true; btn.textContent = "Analysing…";
+  try {
+    const r = await fetch("/api/refresh", {method: "POST", headers: {"Content-Type": "application/json"},
+                                           body: JSON.stringify({team_id: team || null})});
+    const j = await r.json();
+    if (!j.started) toast(j.error || "Refresh failed");
+    let st;
+    do { await new Promise(res => setTimeout(res, 1500)); st = await (await fetch("/api/status")).json(); } while (st.running);
+    if (st.error) toast(st.error, 5000); else toast("Updated");
+    await load();
+  } finally { btn.disabled = false; btn.textContent = "Refresh"; }
+}
+
+$("#tabs").addEventListener("click", e => {
+  const b = e.target.closest("button[data-tab]"); if (!b) return;
+  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll(".tab").forEach(s => s.classList.toggle("hidden", s.id !== b.dataset.tab));
+});
+$("#refresh").addEventListener("click", refresh);
+try { $("#teamId").value = localStorage.getItem("fplTeamId") || ""; } catch (e) {}
+load();
+</script>
+</body>
+</html>
