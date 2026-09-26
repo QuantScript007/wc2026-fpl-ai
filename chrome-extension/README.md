@@ -20,6 +20,29 @@ Connected, you get things public data can't show:
 
 Not logged in? Type any team ID in the dashboard to analyse it from public data.
 
+## Let it make the changes for you
+Pick a suggestion and the extension saves it to your real team — after a confirmation that shows exactly what changes:
+
+- **Apply best lineup** — best XI, bench order, captain and vice-captain. It reads your team back afterwards to check FPL saved it.
+- **Make transfer / Make both** — uses your real selling prices, warns about any points hit, then saves the best lineup and
+  captain for the new squad. Transfers can't be undone, so the confirmation says so.
+- **Autopilot lineup** (Settings, off by default) — before each deadline, saves the best XI and captain whenever it's at least
+  0.5 xP better. It never makes transfers.
+
+## FPL Draft
+Open [draft.premierleague.com](https://draft.premierleague.com) once while logged in and your Draft team is picked up
+automatically (or enter your Draft team ID in Settings). The **Draft** tab shows:
+
+- **Best Draft XI** from your squad, with *Apply best lineup*
+- **Waiver & free-agent targets** — unowned players that improve your best XI, labelled waiver or free agent,
+  with *Submit waiver claim* / *Sign now*
+- **Best free agents** by position
+- **Big board** for draft day — players ranked by value over replacement for your league size, taken players greyed out,
+  plus your best next pick given the positions you still need
+
+Saving to Draft is **experimental**: FPL Draft's save requests aren't publicly documented. If Draft refuses a change,
+nothing is changed and the right Draft page opens so you can do it there.
+
 ## What you get
 - **Popup** — your captain, transfer advice, injured starters, best captain overall, differentials
 - **Dashboard** — Overview · My team (pitch view, single & double transfers) · Optimal squad (wildcard/free-hit planner) ·
@@ -28,12 +51,13 @@ Not logged in? Type any team ID in the dashboard to analyse it from public data.
 - Data refreshes every 3 hours in the background
 
 ## Privacy
+Nothing is ever changed on your team without you confirming it (or turning on autopilot).
 The FPL login token is read from the requests FPL's own site makes, kept in memory only
 (`chrome.storage.session`, cleared when Chrome closes) and sent only to fantasy.premierleague.com.
 The extension has no server and no analytics. Settings → **Forget FPL login** clears it immediately.
 
-Permissions: `webRequest` (to see the FPL login header), `storage`, `alarms`, and access to
-`fantasy.premierleague.com` only.
+Permissions: `webRequest` (to see the FPL login header), `storage`, `alarms`, `scripting` (to save Draft changes
+from a Draft tab, using your Draft login), and access to `fantasy.premierleague.com` and `draft.premierleague.com` only.
 
 ## How it works
 `lib/core.js` is a JavaScript port of the Python package in this repo — the same expected-points model,

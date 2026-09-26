@@ -39,3 +39,29 @@ export async function requestRefresh() {
   if (!res?.ok) throw new Error(res?.error || "Refresh failed");
   return res;
 }
+
+/** Promise-based confirm dialog (needs the <dialog id="confirm"> markup). */
+export function confirmDialog(title, html, yesLabel = "Apply") {
+  const dlg = $("#confirm");
+  $("#confirmTitle").textContent = title;
+  $("#confirmBody").innerHTML = html;
+  $("#confirmYes").textContent = yesLabel;
+  dlg.showModal();
+  return new Promise(resolve => {
+    const done = v => { dlg.close(); $("#confirmYes").onclick = $("#confirmNo").onclick = null; resolve(v); };
+    $("#confirmYes").onclick = () => done(true);
+    $("#confirmNo").onclick = () => done(false);
+    dlg.oncancel = () => done(false);
+  });
+}
+
+/** Ask the background worker to save a change; shows the outcome as a toast. */
+export async function applyChange(msg, button) {
+  const label = button?.textContent;
+  if (button) { button.disabled = true; button.textContent = "Saving…"; }
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "apply", ...msg });
+    toast(res?.ok ? `✓ ${res.message}` : res?.error || "Couldn't save the change", res?.ok ? 5000 : 8000);
+    return !!res?.ok;
+  } finally { if (button) { button.disabled = false; button.textContent = label; } }
+}

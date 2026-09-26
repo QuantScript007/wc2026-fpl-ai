@@ -2,16 +2,36 @@
   "manifest_version": 3,
   "name": "FPL AI Analyzer",
   "short_name": "FPL AI",
-  "version": "1.0.0",
-  "description": "Expected points, captain picks, transfer advice and an optimal squad for Fantasy Premier League — connects to your FPL account.",
+  "version": "1.1.0",
+  "description": "Expected points, captain picks, transfers and FPL Draft advice \u2014 and it can make the best changes to your team for you.",
   "minimum_chrome_version": "116",
-  "permissions": ["storage", "webRequest", "alarms"],
-  "host_permissions": ["https://fantasy.premierleague.com/*"],
-  "background": { "service_worker": "background.js", "type": "module" },
+  "permissions": [
+    "storage",
+    "webRequest",
+    "alarms",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://fantasy.premierleague.com/*",
+    "https://draft.premierleague.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "FPL AI Analyzer",
-    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png" }
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
   },
-  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
 }

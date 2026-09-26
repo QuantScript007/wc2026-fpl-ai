@@ -5,7 +5,8 @@ captain picks, transfer suggestions for **your** team, and a web dashboard.
 Optional daily Telegram summary.
 
 **Prefer your browser?** [`chrome-extension/`](chrome-extension/) is the same analyzer as a Chrome extension
-that connects to your FPL login (real selling prices, free transfers, chips) — no Python needed.
+that connects to your FPL login (real selling prices, free transfers, chips), supports **FPL Draft**,
+and can **apply the best lineup and transfers to your team** for you — no Python needed.
 
 ## Quick start
 ```

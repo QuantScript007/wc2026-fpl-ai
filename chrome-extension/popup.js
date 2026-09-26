@@ -1,5 +1,5 @@
 import { FPL, getCachedReport } from "./lib/fpl-api.js";
-import { $, availPill, connectionHtml, deadlineText, esc, money, num, requestRefresh, toast } from "./lib/ui.js";
+import { $, applyChange, availPill, connectionHtml, deadlineText, esc, money, num, requestRefresh, toast } from "./lib/ui.js";
 
 const openDash = tab => chrome.tabs.create({ url: chrome.runtime.getURL(`dashboard.html${tab ? "#" + tab : ""}`) });
 
@@ -20,7 +20,19 @@ function render(d) {
       <div class="line2"><span>Bank${m.source === "account" ? " · FTs" : ""}</span><b>${money(m.bank)}${m.source === "account" ? " · " + (m.transfer_status === "unlimited" ? "∞" : m.free_transfers) : ""}</b></div>
       <p style="margin:8px 0 0">${esc(m.advice)}</p>
       ${flagged.length ? `<p style="margin:6px 0 0">⚠️ In your XI: ${flagged.map(p => esc(p.name) + availPill(p)).join(", ")}</p>` : ""}
+      ${m.source === "account" && m.lineup_diff?.gain >= 0.05 ? `<div class="line2" style="margin-top:8px;align-items:center">
+        <span>Best lineup is <b>+${num(m.lineup_diff.gain)} xP</b> better</span>
+        <button class="small apply" id="applyLineup">Apply</button></div>` : ""}
     </div>`;
+  }
+  const dr = d.draft;
+  if (dr) {
+    const mv = dr.moves?.[0];
+    html += `<div class="card"><h2>Draft · ${esc(dr.league?.name || dr.entry?.name || "")}</h2>
+      ${dr.next_pick ? `<div class="line2"><span>Next draft pick</span><b>${esc(dr.next_pick.name)}</b></div>` : ""}
+      ${mv ? `<div class="line2"><span>Top ${esc(mv.kind)}</span><b>${esc(mv.out.name)} → ${esc(mv.in.name)} (+${num(mv.gain)})</b></div>` : ""}
+      ${dr.lineup_diff?.gain >= 0.05 ? `<div class="line2"><span>Lineup</span><b>+${num(dr.lineup_diff.gain)} xP available</b></div>` : ""}
+      ${!dr.next_pick && !mv && !(dr.lineup_diff?.gain >= 0.05) ? '<div class="muted">Nothing to change right now.</div>' : ""}</div>`;
   }
   html += `<div class="card"><h2>Best captain overall</h2>
     <div class="big">${esc(c.captain ?? "–")}</div>
@@ -29,6 +41,12 @@ function render(d) {
   if (diffs.length) html += `<div class="card"><h2>Differentials</h2>${diffs.map(p =>
     `<div class="line2"><span>${esc(p.name)} <span class="muted">${esc(p.team_short)} ${esc(p.position)}</span></span><span>${money(p.now_cost)} · ${num(p.selected_by)}%</span></div>`).join("")}</div>`;
   $("#body").innerHTML = html;
+  const btn = $("#applyLineup");
+  if (btn) btn.addEventListener("click", () => {
+    if (btn.dataset.armed) return applyChange({ action: "lineup" }, btn);
+    btn.dataset.armed = 1; btn.textContent = "Tap to confirm";
+    setTimeout(() => { if (!btn.disabled) { delete btn.dataset.armed; btn.textContent = "Apply"; } }, 4000);
+  });
 }
 
 $("#open").addEventListener("click", () => openDash());

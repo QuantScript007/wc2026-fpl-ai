@@ -80,3 +80,18 @@
   .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .notice { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--warn);
             border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; }
+  button.secondary { background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
+  button.small { padding: 4px 9px; font-size: 12px; }
+  button.apply { background: var(--accent); color: #fff; }
+  @media (prefers-color-scheme: dark) { button.apply { color: #140f1a; } }
+  dialog { border: 0; border-radius: 14px; padding: 18px; max-width: 420px; width: calc(100% - 32px);
+           background: var(--panel); color: var(--ink); box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+  dialog::backdrop { background: rgba(20,10,30,.55); }
+  dialog h3 { margin: 0 0 10px; font-size: 16px; }
+  dialog ul { padding-left: 18px; margin: 6px 0; }
+  .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .warnline { color: var(--warn); font-weight: 600; }
+  .diff { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .kind { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; }
+  .switch { display: flex; gap: 8px; align-items: flex-start; }
+  .taken td { opacity: .45; }

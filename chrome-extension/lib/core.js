@@ -71,7 +71,7 @@ export function buildPlayers(bootstrap, fixtures, horizon = 5) {
       id: p.id, name: p.web_name, full_name: `${p.first_name} ${p.second_name}`,
       team: team.name, team_short: team.short, team_id: p.team,
       position: POSITION_MAP[p.element_type] || "?",
-      now_cost: r1(p.now_cost / 10), total_points: p.total_points | 0,
+      now_cost: r1(num(p.now_cost) / 10), total_points: p.total_points | 0,
       points_per_game: num(p.points_per_game), form: num(p.form), ep_next: num(p.ep_next),
       selected_by: num(p.selected_by_percent), minutes: p.minutes | 0, starts: p.starts | 0,
       goals: p.goals_scored | 0, assists: p.assists | 0, clean_sheets: p.clean_sheets | 0,
@@ -79,6 +79,7 @@ export function buildPlayers(bootstrap, fixtures, horizon = 5) {
       xgc: num(p.expected_goals_conceded), transfers_in_event: p.transfers_in_event | 0,
       transfers_out_event: p.transfers_out_event | 0, status: p.status || "a",
       chance_of_playing: cop == null ? null : cop | 0, news: p.news || "",
+      draft_rank: p.draft_rank ?? null,
       fixtures: upcoming, next_fixture: fixtureLabel(upcoming.filter(f => f.gw === gw.next_gw)),
     };
   });
@@ -319,8 +320,9 @@ export function analyzeMyTeam(scored, manager) {
   } else {
     advice = `Best move: ${bestSingle.out.name} → ${bestSingle.in.name} (+${bestSingle.gain.toFixed(1)} pts over the horizon).`;
   }
-  const { picks, sell_prices, ...rest } = manager;
-  return { ...rest, lineup, transfers: transfers.singles, double_transfers: transfers.doubles,
+  const { picks, sell_prices, current, ...rest } = manager;
+  return { ...rest, lineup, lineup_diff: compareLineup(scored, current, lineup), current_lineup: current || null,
+           sell_prices: sell_prices || {}, transfers: transfers.singles, double_transfers: transfers.doubles,
            flagged: squad.filter(p => p.availability < 1), advice,
            missing_players: manager.picks.filter(id => !byId.has(id)) };
 }
@@ -359,5 +361,168 @@ export function buildReport(bootstrap, fixtures, { manager = null, horizon = 5, 
     insights: marketInsights(scored),
     players: [...scored].sort((a, b) => b.xp_next - a.xp_next),
     my_team: manager ? analyzeMyTeam(scored, manager) : null,
+  };
+}
+
+// ------------------------------------------------ lineup changes & saving ----
+
+/** How your saved lineup compares with the best one.
+ *  current = {starters: [ids], bench: [ids], captain: id, vice_captain: id} */
+export function compareLineup(scored, current, best) {
+  if (!current?.starters?.length) return null;
+  const byId = new Map(scored.map(p => [p.id, p]));
+  const xp = id => byId.get(id)?.xp_next ?? 0;
+  const currentXp = r2(sum(current.starters.map(xp)) + (current.captain ? xp(current.captain) : 0));
+  const bestIds = new Set(best.starters.map(p => p.id));
+  const nowIds = new Set(current.starters);
+  const bestCap = best.starters.find(p => p.name === best.captain);
+  const bestVice = best.starters.find(p => p.name === best.vice_captain);
+  const changes = [];
+  const into = best.starters.filter(p => !nowIds.has(p.id));
+  const outOf = current.starters.filter(id => !bestIds.has(id)).map(id => byId.get(id)).filter(Boolean);
+  outOf.forEach((p, i) => changes.push(`Bench ${p.name}${into[i] ? `, start ${into[i].name}` : ""}`));
+  if (bestCap && bestCap.id !== current.captain) changes.push(`Captain ${bestCap.name} (was ${byId.get(current.captain)?.name ?? "–"})`);
+  if (bestVice && bestVice.id !== current.vice_captain) changes.push(`Vice-captain ${bestVice.name}`);
+  return { current_xp: currentXp, best_xp: best.xp_next, gain: r2(best.xp_next - currentXp), changes };
+}
+
+/** Classic FPL lineup save body: GK first, then DEF/MID/FWD; bench GK is position 12. */
+export function lineupPayload(lineup, withCaptain = true) {
+  const benchGk = lineup.bench.filter(p => p.position === "GKP");
+  const benchOut = lineup.bench.filter(p => p.position !== "GKP");
+  const ordered = [...lineup.starters, ...benchGk, ...benchOut];
+  const picks = ordered.map((p, i) => {
+    const pick = { element: p.id, position: i + 1 };
+    if (withCaptain) Object.assign(pick, { is_captain: p.name === lineup.captain, is_vice_captain: p.name === lineup.vice_captain });
+    return pick;
+  });
+  return withCaptain ? { chip: null, picks } : { picks, subs: [] };
+}
+
+/** Classic FPL transfer body. Prices in tenths; selling price must be your real one. */
+export function transferPayload({ entry, event, moves, sellPrices = {} }) {
+  return {
+    confirmed: true, entry, event, chip: null,
+    transfers: moves.map(m => ({
+      element_in: m.in.id, element_out: m.out.id,
+      purchase_price: Math.round(m.in.now_cost * 10),
+      selling_price: Math.round((sellPrices[m.out.id] ?? m.sell_price ?? m.out.now_cost) * 10),
+    })),
+  };
+}
+
+/** Bank, free transfers used and points hit for a set of moves. */
+export function transferCost(moves, { bank, freeTransfers = 1, unlimited = false, sellPrices = {} }) {
+  const spend = sum(moves.map(m => m.in.now_cost - (sellPrices[m.out.id] ?? m.sell_price ?? m.out.now_cost)));
+  const extra = unlimited ? 0 : Math.max(0, moves.length - freeTransfers);
+  return { bank_after: r1(bank - spend), hit: extra * 4, affordable: bank - spend >= -1e-9 };
+}
+
+// ------------------------------------------------------------- draft ----
+
+/** Turn the Draft API's bootstrap into the classic shape so the same model runs on it.
+ *  Fixtures come from the classic API; clubs are matched by short name. */
+export function normalizeDraftBootstrap(draft, classicFixtures = [], classicTeams = []) {
+  const events = Array.isArray(draft.events) ? draft.events : (draft.events?.data || []).map(e => ({
+    ...e, is_next: e.id === draft.events.next, is_current: e.id === draft.events.current,
+  }));
+  const shortToDraft = Object.fromEntries(draft.teams.map(t => [t.short_name, t.id]));
+  const classicToShort = Object.fromEntries(classicTeams.map(t => [t.id, t.short_name]));
+  const mapTeam = id => classicTeams.length ? shortToDraft[classicToShort[id]] : id;
+  const fixtures = (classicFixtures || []).map(f => ({ ...f, team_h: mapTeam(f.team_h), team_a: mapTeam(f.team_a) }))
+    .filter(f => f.team_h && f.team_a);
+  return { bootstrap: { ...draft, events, elements: draft.elements.map(e => ({ now_cost: 0, ...e })) }, fixtures };
+}
+
+/** Like-for-like swaps between your squad and unowned players, ranked by best-XI gain. */
+export function suggestDraftMoves(scored, squadIds, available, { metric = "xp_horizon", topN = 8, shortlist = 25 } = {}) {
+  const byId = new Map(scored.map(p => [p.id, p]));
+  const squad = squadIds.map(id => byId.get(id)).filter(Boolean);
+  if (squad.length < 11) return [];
+  const base = bestXi(squad, metric).xp_horizon;
+  const pool = scored.filter(p => available[p.id] && p.availability >= 0.75);
+  const cands = [];
+  for (const out of squad) for (const inc of pool)
+    if (inc.position === out.position) cands.push({ delta: inc[metric] - out[metric], out, inc });
+  cands.sort((a, b) => b.delta - a.delta);
+  const moves = [];
+  for (const c of cands.slice(0, shortlist * 3)) {
+    const gain = bestXi([...squad.filter(p => p.id !== c.out.id), c.inc], metric).xp_horizon - base;
+    if (gain > 0) moves.push({ out: c.out, in: c.inc, gain: r2(gain), kind: available[c.inc.id] === "w" ? "waiver" : "free agent" });
+  }
+  moves.sort((a, b) => b.gain - a.gain);
+  // one suggestion per incoming player, and at most 3 per player you'd drop
+  const seen = new Set(), outs = {};
+  return moves.filter(m => {
+    if (seen.has(m.in.id) || (outs[m.out.id] || 0) >= 3) return false;
+    seen.add(m.in.id); outs[m.out.id] = (outs[m.out.id] || 0) + 1; return true;
+  }).slice(0, topN);
+}
+
+/** Draft-day big board: season value over replacement level for each position. */
+export function draftBigBoard(scored, { leagueSize = 8, taken = new Set(), limit = 150 } = {}) {
+  const season = p => p.base_xp * (0.5 + 0.5 * p.availability);
+  const repl = {};
+  for (const pos of POSITIONS) {
+    const vals = scored.filter(p => p.position === pos).map(season).sort((a, b) => b - a);
+    repl[pos] = vals[Math.min(vals.length - 1, leagueSize * SQUAD_SLOTS[pos])] ?? 0;
+  }
+  return scored.map(p => ({ ...p, season_xp: r2(season(p)), vorp: r2(season(p) - repl[p.position]), taken: taken.has(p.id) }))
+    .sort((a, b) => b.vorp - a.vorp).slice(0, limit)
+    .map((p, i) => ({ ...p, board_rank: i + 1 }));
+}
+
+/** Best next draft pick given the positions you still need. */
+export function nextDraftPick(board, mySquadIds = []) {
+  const mine = new Set(mySquadIds);
+  const have = {};
+  for (const p of board) if (mine.has(p.id)) have[p.position] = (have[p.position] || 0) + 1;
+  return board.find(p => !p.taken && !mine.has(p.id) && (have[p.position] || 0) < SQUAD_SLOTS[p.position]) || null;
+}
+
+/** Full Draft report. ctx: {entry, league, picks, elementStatus, choices, current} */
+export function buildDraftReport(draftBootstrap, classicFixtures, classicTeams, ctx, { horizon = 5 } = {}) {
+  const { bootstrap, fixtures } = normalizeDraftBootstrap(draftBootstrap, classicFixtures, classicTeams);
+  const data = buildPlayers(bootstrap, fixtures, horizon);
+  const gw = data.gameweek;
+  const scored = scorePlayers(data.players, gw.finished_gws, gw.next_gw);
+  const status = ctx.elementStatus || [];
+  const available = {}, taken = new Set();
+  for (const s of status) {
+    if (s.owner == null && s.status !== "o") available[s.element] = s.status === "w" ? "w" : "a";
+    else taken.add(s.element);
+  }
+  for (const c of ctx.choices || []) if (c.element) taken.add(c.element);
+  const leagueSize = ctx.league?.league_entries?.length || 8;
+  const board = draftBigBoard(scored, { leagueSize, taken });
+  const byId = new Map(scored.map(p => [p.id, p]));
+  const squadIds = ctx.picks || [];
+  let lineup = null, lineupDiff = null, moves = [];
+  if (squadIds.length >= 11) {
+    lineup = bestXi(squadIds.map(id => byId.get(id)).filter(Boolean), "xp_next");
+    lineup.captain = lineup.vice_captain = null;             // no captains in Draft
+    lineup.xp_next = r2(sum(lineup.starters.map(p => p.xp_next)));
+    if (ctx.current?.starters?.length) {
+      const cur = r2(sum(ctx.current.starters.map(id => byId.get(id)?.xp_next ?? 0)));
+      const bestIds = new Set(lineup.starters.map(p => p.id)), nowIds = new Set(ctx.current.starters);
+      const outOf = ctx.current.starters.filter(id => !bestIds.has(id)).map(id => byId.get(id)).filter(Boolean);
+      const into = lineup.starters.filter(p => !nowIds.has(p.id));
+      lineupDiff = { current_xp: cur, best_xp: lineup.xp_next, gain: r2(lineup.xp_next - cur),
+                     changes: outOf.map((p, i) => `Bench ${p.name}${into[i] ? `, start ${into[i].name}` : ""}`) };
+    }
+    moves = suggestDraftMoves(scored, squadIds, available);
+  }
+  const freeAgents = {};
+  for (const pos of POSITIONS)
+    freeAgents[pos] = scored.filter(p => available[p.id] && p.position === pos)
+      .sort((a, b) => b.xp_horizon - a.xp_horizon).slice(0, 6).map(p => ({ ...p, claim: available[p.id] }));
+  const draftStatus = ctx.league?.league?.draft_status || null;
+  return {
+    updated: new Date().toISOString(), gameweek: gw, horizon,
+    entry: ctx.entry || null, league: ctx.league?.league ? { id: ctx.league.league.id, name: ctx.league.league.name,
+      draft_status: draftStatus, size: leagueSize } : null,
+    lineup, lineup_diff: lineupDiff, moves, free_agents: freeAgents,
+    big_board: board, next_pick: draftStatus === "post" ? null : nextDraftPick(board, squadIds),
+    squad: squadIds.map(id => byId.get(id)).filter(Boolean),
   };
 }
