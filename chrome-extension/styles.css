@@ -1,0 +1,82 @@
+  :root {
+    --bg: #f5f3f7; --panel: #ffffff; --ink: #1d1428; --muted: #6b6178; --line: #e6e0ec;
+    --accent: #37003c; --accent-2: #00b86b; --warn: #d97706; --bad: #dc2626;
+    --pitch: #0f7a45; --pitch-line: rgba(255,255,255,.25);
+    --fdr1: #1f7a3d; --fdr2: #5cc27a; --fdr3: #d9d4df; --fdr4: #f06a6a; --fdr5: #8f1d2c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #140f1a; --panel: #1e1726; --ink: #efe9f5; --muted: #a49bb0; --line: #332a3d;
+            --accent: #c78bd0; --fdr3: #4a4155; --pitch: #0b5c34; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: #37003c; color: #fff; padding: 14px 16px; }
+  header .row { max-width: 1100px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px;
+                align-items: center; justify-content: space-between; }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .2px; }
+  header .meta { font-size: 12px; opacity: .8; }
+  .controls { display: flex; gap: 6px; flex-wrap: wrap; }
+  .controls input { width: 120px; padding: 7px 9px; border-radius: 8px; border: 0; font: inherit; }
+  button { background: #00ff87; color: #37003c; border: 0; border-radius: 8px; padding: 7px 12px;
+           font: inherit; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .6; cursor: wait; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  nav { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 14px; }
+  nav button { background: var(--panel); color: var(--ink); border: 1px solid var(--line); font-weight: 500; white-space: nowrap; }
+  nav button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  @media (prefers-color-scheme: dark) { nav button.on { color: #140f1a; } }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 10px; }
+  .big { font-size: 26px; font-weight: 700; }
+  .muted { color: var(--muted); }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600;
+          background: var(--line); color: var(--ink); }
+  .pill.good { background: var(--accent-2); color: #fff; } .pill.warn { background: var(--warn); color: #fff; }
+  .pill.bad { background: var(--bad); color: #fff; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-size: 11px; text-transform: uppercase; color: var(--muted); cursor: pointer; user-select: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .scroll { overflow-x: auto; }
+  .fdr { display: inline-block; min-width: 38px; text-align: center; font-size: 11px; font-weight: 600;
+         padding: 2px 4px; border-radius: 4px; margin: 1px; }
+  .f1 { background: var(--fdr1); color: #fff; } .f2 { background: var(--fdr2); color: #0b2a15; }
+  .f3 { background: var(--fdr3); color: var(--ink); } .f4 { background: var(--fdr4); color: #fff; }
+  .f5 { background: var(--fdr5); color: #fff; }
+  .pitch { background: var(--pitch); border-radius: 12px; padding: 12px 6px; position: relative;
+           background-image: linear-gradient(var(--pitch-line) 1px, transparent 1px);
+           background-size: 100% 25%; }
+  .line { display: flex; justify-content: center; gap: 4px; margin: 8px 0; }
+  .shirt { background: #fff; color: #1d1428; border-radius: 8px; flex: 0 1 84px; min-width: 0; padding: 5px 3px;
+           text-align: center; font-size: 11px; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .shirt b { display: block; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .shirt .xp { color: #0f7a45; font-weight: 700; }
+  .shirt.flag { outline: 2px solid var(--warn); }
+  .bench { display: flex; gap: 6px; justify-content: center; margin-top: 10px; flex-wrap: wrap;
+           padding-top: 10px; border-top: 1px dashed rgba(255,255,255,.4); }
+  .bench .shirt { opacity: .85; }
+  .badge-c { background: #1d1428; color: #fff; border-radius: 50%; width: 16px; height: 16px;
+             display: inline-grid; place-items: center; font-size: 10px; margin-left: 3px; }
+  .stats { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 12px; }
+  .stats div span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; }
+  .stats div b { font-size: 18px; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .filters input, .filters select { padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--panel); color: var(--ink); font: inherit; }
+  .empty { padding: 30px; text-align: center; color: var(--muted); }
+  .transfer { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .transfer:last-child { border-bottom: 0; }
+  .out { color: var(--bad); } .in { color: var(--accent-2); font-weight: 600; }
+  .hidden { display: none; }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #1d1428;
+           color: #fff; padding: 9px 14px; border-radius: 8px; font-size: 13px; }
+  a { color: inherit; }
+  .conn { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; }
+  .dot.on { background: #00ff87; } .dot.warn { background: #f59e0b; }
+  button.ghost { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.5); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .notice { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--warn);
+            border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; }

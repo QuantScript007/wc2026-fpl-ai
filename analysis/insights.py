@@ -62,7 +62,13 @@ def suggest_transfers(scored: pd.DataFrame, squad_ids: list, bank: float,
         if len(results) >= shortlist:
             break
     results.sort(key=lambda r: r["gain"], reverse=True)
-    return results[:top_n]
+    # Show variety: keep only the best way to bring in each player
+    unique, used_in = [], set()
+    for r in results:
+        if r["in"]["id"] not in used_in:
+            used_in.add(r["in"]["id"])
+            unique.append(r)
+    return unique[:top_n]
 
 
 def analyze_my_team(scored: pd.DataFrame, manager: dict, top_n: int = 5) -> dict:

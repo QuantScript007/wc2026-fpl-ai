@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPL AI Analyzer</title>
+<link rel="icon" href="icons/icon32.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <div class="row">
+    <div>
+      <h1>⚽ FPL AI Analyzer</h1>
+      <div class="meta" id="meta">Loading…</div>
+    </div>
+    <div class="controls">
+      <span class="conn" id="conn"><span class="dot"></span><span>Not connected</span></span>
+      <input id="teamId" inputmode="numeric" placeholder="Team ID">
+      <button id="refresh">Refresh</button>
+    </div>
+  </div>
+</header>
+<main>
+  <div id="notice"></div>
+  <nav id="tabs">
+    <button data-tab="overview" class="on">Overview</button>
+    <button data-tab="myteam">My team</button>
+    <button data-tab="optimal">Optimal squad</button>
+    <button data-tab="fixtures">Fixtures</button>
+    <button data-tab="players">Players</button>
+    <button data-tab="settings">Settings</button>
+  </nav>
+  <section id="overview" class="tab"></section>
+  <section id="myteam" class="tab hidden"></section>
+  <section id="optimal" class="tab hidden"></section>
+  <section id="fixtures" class="tab hidden"></section>
+  <section id="players" class="tab hidden"></section>
+  <section id="settings" class="tab hidden"></section>
+</main>
+<div id="toast" class="hidden"></div>
+<script type="module" src="dashboard.js"></script>
+</body>
+</html>

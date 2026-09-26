@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FPL AI</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { width: 360px; }
+  header { padding: 12px 14px; }
+  header h1 { font-size: 16px; }
+  .pbody { padding: 12px 14px; display: grid; gap: 10px; }
+  .card { padding: 12px; }
+  .card h2 { margin-bottom: 6px; }
+  .big { font-size: 22px; }
+  .actions { display: flex; gap: 6px; }
+  .actions button { flex: 1; }
+  .line2 { display: flex; justify-content: space-between; gap: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <div>
+      <h1>⚽ FPL AI</h1>
+      <div class="meta" id="meta">Loading…</div>
+    </div>
+    <span class="conn" id="conn"><span class="dot"></span></span>
+  </div>
+</header>
+<div class="pbody" id="body"><div class="empty">Loading…</div></div>
+<div class="pbody" style="padding-top:0">
+  <div class="actions">
+    <button id="refresh">Refresh</button>
+    <button id="open" style="background:#37003c;color:#fff">Open dashboard</button>
+  </div>
+</div>
+<div id="toast" class="hidden"></div>
+<script type="module" src="popup.js"></script>
+</body>
+</html>

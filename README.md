@@ -4,6 +4,9 @@ A Fantasy Premier League assistant: expected-points model, exact squad optimiser
 captain picks, transfer suggestions for **your** team, and a web dashboard.
 Optional daily Telegram summary.
 
+**Prefer your browser?** [`chrome-extension/`](chrome-extension/) is the same analyzer as a Chrome extension
+that connects to your FPL login (real selling prices, free transfers, chips) — no Python needed.
+
 ## Quick start
 ```
 pip install -r requirements.txt
