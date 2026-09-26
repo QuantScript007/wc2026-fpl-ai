@@ -219,3 +219,6 @@ __marimo__/
 
 # Generated analysis output
 data/*.json
+
+# The Chrome extension keeps its JS modules in lib/
+!chrome-extension/lib/
