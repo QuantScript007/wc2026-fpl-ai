@@ -8,24 +8,41 @@ Optional daily Telegram summary.
 that connects to your FPL login (real selling prices, free transfers, chips), supports **FPL Draft**,
 and can **apply the best lineup and transfers to your team** for you — no Python needed.
 
-## Telegram bot with Stars Premium
-`telegram_bot.py` runs the **FPL AI bot**. Free: `/captain`, `/differentials`. **Premium** costs Telegram Stars
-(default ⭐150 / 30 days). It adds `/myteam` advice, deadline alerts 24h and 2h before each deadline, and a
-key that unlocks the Chrome extension's Premium features.
+## Telegram bot with Stars Premium (free hosting)
+The **FPL AI bot** runs free on **Cloudflare Workers**, and **GitHub Actions** runs the analysis every hour. No server needed.
 
-Telegram requires digital goods in bots to be paid in Stars. The bot sends the invoice in `XTR`,
-answers pre-checkout, handles `/terms` and `/paysupport`, and admins can `/refund <payment ID>`.
+- Free: `/captain`, `/differentials`, `/team <id>`
+- **Premium** for Telegram Stars (default ⭐150 / 30 days): `/myteam`, deadline alerts 24h and 2h before each
+  deadline, and a key that unlocks the Chrome extension's Premium features
+- Payments follow Telegram's Stars rules: invoices in `XTR`, instant pre-checkout answer, `/terms`, `/paysupport`.
+  Admins: `/refund <payment ID>`, `/reply <user ID> <text>`, `/stats`
 
-Setup:
-1. Create a bot with [@BotFather](https://t.me/BotFather) and put its token in `.env` as `TELEGRAM_BOT_TOKEN`.
-   Set `ADMIN_IDS` to your Telegram user ID.
-2. `pip install -r requirements.txt`
-3. `python telegram_bot.py --setup --bot-username YourBotName` creates `data/licence_private.pem`
-   (secret, git-ignored, back it up) and writes the public key into `chrome-extension/lib/licence-config.js`.
-   Commit that file and ship the extension.
-4. `python telegram_bot.py` runs the bot. Keep it running on an always-on PC or server.
+How it fits together:
+```
+Telegram ──webhook──▶ Cloudflare Worker (worker/) ──▶ D1 database (users, payments)
+                              ▲ every hour: captain, differentials, Premium team reports
+GitHub Actions (fpl-bot-data.yml) runs stars_bot/publish.py with the Python analyzer
+```
 
-Stars arrive in the bot's balance. Withdraw them via [Fragment](https://fragment.com) from the bot's settings in Telegram.
+### Set up (works from a phone)
+1. **Bot:** in Telegram, message [@BotFather](https://t.me/BotFather) → `/newbot` → copy the token.
+   Message [@userinfobot](https://t.me/userinfobot) to get your own Telegram ID.
+2. **Cloudflare** (free account at dash.cloudflare.com):
+   - Open **Workers & Pages** once, so your `workers.dev` subdomain gets created.
+   - Copy your **Account ID** (on the Workers & Pages overview page).
+   - **My Profile → API Tokens → Create Token →** template **Edit Cloudflare Workers** → add permission
+     **Account · D1 · Edit** → create → copy the token.
+3. **GitHub:** repo **Settings → Secrets and variables → Actions**.
+   - **Secrets:** `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `TELEGRAM_BOT_TOKEN`
+   - **Variables:** `ADMIN_IDS` = your Telegram ID. Optional: `STARS_PRICE`, `PREMIUM_DAYS`, `SUPPORT_CONTACT`, `EXTENSION_URL`
+4. **Actions → Deploy bot → Run workflow.** It creates the database, deploys the Worker, connects Telegram,
+   and commits the extension's public key (`chrome-extension/lib/licence-config.js`). It then starts the first data upload.
+5. Message your bot `/start`. Reload the extension so it picks up the key.
+
+Scheduled workflows only run on the repository's **default branch**, so keep this code there.
+Stars collect in the bot's balance; withdraw them via [Fragment](https://fragment.com) from the bot's settings in Telegram.
+
+Free-plan headroom: 100,000 Telegram updates a day. Alerts go out at up to 40 messages every 5 minutes.
 
 ## Quick start
 ```
@@ -89,8 +106,8 @@ models/captain.py          captain / vice-captain
 optimizer/squad.py         integer-programming squad & XI optimiser
 analysis/insights.py       my-team analysis, transfers, market insights
 notifications/telegram.py  Telegram send()
-stars_bot/                 Telegram bot: Stars payments, licence keys, alerts
-telegram_bot.py            bot entry point (--setup, run)
+stars_bot/                 hourly publisher for the Telegram bot (messages, publish)
+worker/                    Telegram bot on Cloudflare Workers: Stars payments, keys, alerts
 main.py                    pipeline + scheduler CLI
 app.py, dashboard/         Flask server + single-page dashboard
 ```

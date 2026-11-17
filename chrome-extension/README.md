@@ -20,7 +20,7 @@ Free: captain picks, best XI, fixtures, player table, differentials, popup and d
 
 Buy in the bot (**Get Premium in Telegram** in Settings), and the bot sends a key. Paste it in
 Settings → Premium → **Activate**. The key is checked offline with the bot's public key
-(`lib/licence-config.js`), so there's still no server. If that file has no key, everything is unlocked.
+(`lib/licence-config.js`, written by the **Deploy bot** workflow), so the extension still needs no server. If that file has no key, everything is unlocked.
 
 ## Connect your FPL account
 Open [fantasy.premierleague.com](https://fantasy.premierleague.com/my-team) and log in as usual.

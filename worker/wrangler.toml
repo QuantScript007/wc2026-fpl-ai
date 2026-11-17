@@ -1,0 +1,15 @@
+# Cloudflare Worker for the FPL AI Telegram bot. Deployed by .github/workflows/deploy-bot.yml.
+name = "fpl-ai-bot"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "fpl-ai-bot"
+database_id = "D1_DATABASE_ID"   # replaced at deploy time from the D1_DATABASE_ID GitHub secret
+
+[triggers]
+crons = ["*/5 * * * *"]          # deadline alerts + renewal reminders
+
+[observability]
+enabled = true

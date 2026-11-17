@@ -1,0 +1,107 @@
+# Deploys the FPL AI Telegram bot to Cloudflare Workers (free plan).
+# Needs repository secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, TELEGRAM_BOT_TOKEN.
+# Optional repository variables: ADMIN_IDS, STARS_PRICE, PREMIUM_DAYS, SUPPORT_CONTACT, EXTENSION_URL.
+# Run it from the Actions tab ("Deploy bot" -> Run workflow). It also runs when worker/ changes.
+name: Deploy bot
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ["worker/**", ".github/workflows/deploy-bot.yml"]
+
+permissions:
+  contents: write   # commit the extension's public key + Worker URL
+  actions: write    # start the first data upload
+
+concurrency: deploy-bot
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      DB_NAME: fpl-ai-bot
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets
+        run: |
+          missing=""
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          [ -n "$TELEGRAM_BOT_TOKEN" ] || missing="$missing TELEGRAM_BOT_TOKEN"
+          if [ -n "$missing" ]; then
+            echo "::error::Add these repository secrets (Settings -> Secrets and variables -> Actions):$missing"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Create the D1 database (first run only)
+        run: |
+          id=$(npx wrangler d1 list --json | jq -r --arg n "$DB_NAME" '.[] | select(.name==$n) | .uuid')
+          if [ -z "$id" ]; then
+            npx wrangler d1 create "$DB_NAME" --location apac --update-config=false < /dev/null
+            id=$(npx wrangler d1 list --json | jq -r --arg n "$DB_NAME" '.[] | select(.name==$n) | .uuid')
+          fi
+          [ -n "$id" ] || { echo "::error::Could not find or create the D1 database"; exit 1; }
+          sed -i "s/D1_DATABASE_ID/$id/" wrangler.toml
+          npx wrangler d1 execute "$DB_NAME" --remote --file=schema.sql -y
+
+      - name: Deploy Worker
+        env:
+          ADMIN_IDS: ${{ vars.ADMIN_IDS }}
+          STARS_PRICE: ${{ vars.STARS_PRICE || '150' }}
+          PREMIUM_DAYS: ${{ vars.PREMIUM_DAYS || '30' }}
+          SUPPORT_CONTACT: ${{ vars.SUPPORT_CONTACT }}
+          EXTENSION_URL: ${{ vars.EXTENSION_URL }}
+        run: |
+          args=(--var "STARS_PRICE:$STARS_PRICE" --var "PREMIUM_DAYS:$PREMIUM_DAYS"
+                --var "GITHUB_REPO:${{ github.repository }}" --var "GITHUB_BRANCH:${{ github.ref_name }}")
+          [ -n "$ADMIN_IDS" ] && args+=(--var "ADMIN_IDS:$ADMIN_IDS")
+          [ -n "$SUPPORT_CONTACT" ] && args+=(--var "SUPPORT_CONTACT:$SUPPORT_CONTACT")
+          [ -n "$EXTENSION_URL" ] && args+=(--var "EXTENSION_URL:$EXTENSION_URL")
+          npx wrangler deploy "${args[@]}" | tee deploy.log
+          printf '{"TELEGRAM_BOT_TOKEN": %s}' "$(jq -Rn --arg t "$TELEGRAM_BOT_TOKEN" '$t')" > /tmp/secrets.json
+          npx wrangler secret bulk /tmp/secrets.json
+          rm /tmp/secrets.json
+          url=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          [ -n "$url" ] || { echo "::error::No workers.dev URL in the deploy output. Open Workers & Pages in the Cloudflare dashboard once to create your workers.dev subdomain, then re-run."; exit 1; }
+          echo "$url" > deployed-url.txt
+          echo "WORKER_URL=$url" >> "$GITHUB_ENV"
+
+      - name: Connect Telegram + licence key
+        run: |
+          token=$(printf 'fpl-ai-admin:%s' "$TELEGRAM_BOT_TOKEN" | sha256sum | cut -d' ' -f1)
+          for i in 1 2 3 4 5; do   # a brand-new workers.dev URL can take a moment to resolve
+            if curl -fsS -X POST -H "authorization: Bearer $token" "$WORKER_URL/internal/setup" -o /tmp/setup.json; then break; fi
+            sleep 10
+          done
+          jq -e .bot /tmp/setup.json > /dev/null || { cat /tmp/setup.json; exit 1; }
+          jq -r .licence_config_js /tmp/setup.json > ../chrome-extension/lib/licence-config.js
+          echo "### ✅ @$(jq -r .bot /tmp/setup.json) is live" >> "$GITHUB_STEP_SUMMARY"
+          echo "Worker: $WORKER_URL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit the extension key + Worker URL
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deployed-url.txt ../chrome-extension/lib/licence-config.js
+          git diff --cached --quiet || { git commit -m "Bot deployed: extension public key + Worker URL"; git push; }
+
+      - name: First data upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run fpl-bot-data.yml --ref "${{ github.ref_name }}" || echo "Start 'FPL bot data' from the Actions tab."
