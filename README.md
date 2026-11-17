@@ -8,6 +8,25 @@ Optional daily Telegram summary.
 that connects to your FPL login (real selling prices, free transfers, chips), supports **FPL Draft**,
 and can **apply the best lineup and transfers to your team** for you — no Python needed.
 
+## Telegram bot with Stars Premium
+`telegram_bot.py` runs the **FPL AI bot**. Free: `/captain`, `/differentials`. **Premium** costs Telegram Stars
+(default ⭐150 / 30 days). It adds `/myteam` advice, deadline alerts 24h and 2h before each deadline, and a
+key that unlocks the Chrome extension's Premium features.
+
+Telegram requires digital goods in bots to be paid in Stars. The bot sends the invoice in `XTR`,
+answers pre-checkout, handles `/terms` and `/paysupport`, and admins can `/refund <payment ID>`.
+
+Setup:
+1. Create a bot with [@BotFather](https://t.me/BotFather) and put its token in `.env` as `TELEGRAM_BOT_TOKEN`.
+   Set `ADMIN_IDS` to your Telegram user ID.
+2. `pip install -r requirements.txt`
+3. `python telegram_bot.py --setup --bot-username YourBotName` creates `data/licence_private.pem`
+   (secret, git-ignored, back it up) and writes the public key into `chrome-extension/lib/licence-config.js`.
+   Commit that file and ship the extension.
+4. `python telegram_bot.py` runs the bot. Keep it running on an always-on PC or server.
+
+Stars arrive in the bot's balance. Withdraw them via [Fragment](https://fragment.com) from the bot's settings in Telegram.
+
 ## Quick start
 ```
 pip install -r requirements.txt
@@ -70,6 +89,8 @@ models/captain.py          captain / vice-captain
 optimizer/squad.py         integer-programming squad & XI optimiser
 analysis/insights.py       my-team analysis, transfers, market insights
 notifications/telegram.py  Telegram send()
+stars_bot/                 Telegram bot: Stars payments, licence keys, alerts
+telegram_bot.py            bot entry point (--setup, run)
 main.py                    pipeline + scheduler CLI
 app.py, dashboard/         Flask server + single-page dashboard
 ```

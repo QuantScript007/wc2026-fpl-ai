@@ -9,6 +9,19 @@ No Python, no server.
 3. Click **Load unpacked** and pick the `chrome-extension` folder.
 4. Pin **FPL AI** from the puzzle-piece menu.
 
+## Free vs Premium
+Free: captain picks, best XI, fixtures, player table, differentials, popup and deadline badge.
+
+**Premium** (paid with Telegram Stars in the FPL AI bot) unlocks:
+- **Apply changes + autopilot** — saving lineups and transfers to your team
+- **FPL Draft** tab
+- **Transfer planner** — single/double transfers and the Wildcard / Free Hit squad
+- **Deadline alerts** in Telegram
+
+Buy in the bot (**Get Premium in Telegram** in Settings), and the bot sends a key. Paste it in
+Settings → Premium → **Activate**. The key is checked offline with the bot's public key
+(`lib/licence-config.js`), so there's still no server. If that file has no key, everything is unlocked.
+
 ## Connect your FPL account
 Open [fantasy.premierleague.com](https://fantasy.premierleague.com/my-team) and log in as usual.
 The extension notices the login automatically — press **Refresh** in the popup and your team appears.

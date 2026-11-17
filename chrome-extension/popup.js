@@ -1,9 +1,13 @@
 import { FPL, getCachedReport } from "./lib/fpl-api.js";
+import { getPremium, premiumLink } from "./lib/licence.js";
 import { $, applyChange, availPill, connectionHtml, deadlineText, esc, money, num, requestRefresh, toast } from "./lib/ui.js";
+
+let PREMIUM = { premium: true }, LAST = null;
 
 const openDash = tab => chrome.tabs.create({ url: chrome.runtime.getURL(`dashboard.html${tab ? "#" + tab : ""}`) });
 
 function render(d) {
+  LAST = d;
   const gw = d.gameweek || {};
   $("#meta").textContent = gw.next_gw ? `GW${gw.next_gw} · ${deadlineText(gw.next_deadline)}` : "Season finished";
   $("#conn").innerHTML = connectionHtml(d);
@@ -22,11 +26,13 @@ function render(d) {
       ${flagged.length ? `<p style="margin:6px 0 0">⚠️ In your XI: ${flagged.map(p => esc(p.name) + availPill(p)).join(", ")}</p>` : ""}
       ${m.source === "account" && m.lineup_diff?.gain >= 0.05 ? `<div class="line2" style="margin-top:8px;align-items:center">
         <span>Best lineup is <b>+${num(m.lineup_diff.gain)} xP</b> better</span>
-        <button class="small apply" id="applyLineup">Apply</button></div>` : ""}
+        ${PREMIUM.premium ? '<button class="small apply" id="applyLineup">Apply</button>' : '<button class="small ghost lockbtn" id="goPremium">🔒 Premium</button>'}</div>` : ""}
     </div>`;
   }
   const dr = d.draft;
-  if (dr) {
+  if (dr && !PREMIUM.premium) {
+    html += `<div class="card"><h2>Draft</h2><div class="muted">🔒 Draft advice is a Premium feature.</div></div>`;
+  } else if (dr) {
     const mv = dr.moves?.[0];
     html += `<div class="card"><h2>Draft · ${esc(dr.league?.name || dr.entry?.name || "")}</h2>
       ${dr.next_pick ? `<div class="line2"><span>Next draft pick</span><b>${esc(dr.next_pick.name)}</b></div>` : ""}
@@ -41,6 +47,10 @@ function render(d) {
   if (diffs.length) html += `<div class="card"><h2>Differentials</h2>${diffs.map(p =>
     `<div class="line2"><span>${esc(p.name)} <span class="muted">${esc(p.team_short)} ${esc(p.position)}</span></span><span>${money(p.now_cost)} · ${num(p.selected_by)}%</span></div>`).join("")}</div>`;
   $("#body").innerHTML = html;
+  $("#goPremium")?.addEventListener("click", () => {
+    const link = premiumLink();
+    link ? chrome.tabs.create({ url: link }) : openDash("settings");
+  });
   const btn = $("#applyLineup");
   if (btn) btn.addEventListener("click", () => {
     if (btn.dataset.armed) return applyChange({ action: "lineup" }, btn);
@@ -55,9 +65,14 @@ $("#refresh").addEventListener("click", async () => {
   try { await requestRefresh(); } catch (e) { toast(e.message, 4000); }
   finally { b.disabled = false; b.textContent = "Refresh"; }
 });
-chrome.storage.onChanged.addListener((ch, area) => { if (area === "local" && ch.report?.newValue) render(ch.report.newValue); });
+chrome.storage.onChanged.addListener(async (ch, area) => {
+  if (area !== "local") return;
+  if ("licenceKey" in ch) { PREMIUM = await getPremium(); if (LAST && !ch.report) render(LAST); }
+  if (ch.report?.newValue) render(ch.report.newValue);
+});
 
 (async () => {
+  PREMIUM = await getPremium();
   const { report, error } = await getCachedReport();
   if (report) render(report);
   else { $("#body").innerHTML = `<div class="empty">${error ? esc(error) : "Fetching FPL data…"}</div>`; }

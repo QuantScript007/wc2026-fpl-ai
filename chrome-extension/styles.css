@@ -95,3 +95,8 @@
   .kind { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; }
   .switch { display: flex; gap: 8px; align-items: flex-start; }
   .taken td { opacity: .45; }
+
+  .locked p { margin: 6px 0; }
+  .btnlink { display: inline-block; background: var(--accent); color: #fff !important; padding: 6px 12px; border-radius: 8px;
+             text-decoration: none; font-weight: 600; }
+  .lockbtn { color: var(--accent) !important; border-color: var(--line) !important; }

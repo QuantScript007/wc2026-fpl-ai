@@ -1,0 +1,11 @@
+{
+  "jwk": {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "8wqhDCFAnCh5euuLXAkTA3NpJ6mMWHmabQG-YvKzERc",
+    "y": "xgA3pZpJIyVkUpWaoK0FKiP7_K4QQlBJhY2XQR8mQQU"
+  },
+  "now": 1800000000,
+  "valid": "FPLAI1.eyJ1Ijo0MjQyNDIsImV4cCI6MTgwMjU5MjAwMCwiaWF0IjoxODAwMDAwMDAwfQ.TvPWf3dwm0-V7jmydGZSc-rMqKqc2ucT6z7ZTMaVku-ephmqOgLgMqF-tu1lrbcTNHb4v0DAe3nUDcGue2h1YA",
+  "expired": "FPLAI1.eyJ1Ijo0MjQyNDIsImV4cCI6MTc5OTk5OTk5OSwiaWF0IjoxNzk3MzIxNjAwfQ.3tEYrdrjn7MceQvTPIxnT3HkNkcRkRuNvkcsu_9J5p8CEkVOz_iy9zDGAq8yQUbfJUHRWK_6WdQINBwaqDVmwA"
+}
