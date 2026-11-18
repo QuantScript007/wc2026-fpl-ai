@@ -1,7 +1,9 @@
 import { DRAFT, FPL, getCachedReport, getSettings, saveSettings } from "./lib/fpl-api.js";
 import { transferCost } from "./lib/core.js";
-import { $, applyChange, availPill, confirmDialog, connectionHtml, deadlineText, esc, money, num, requestRefresh, toast } from "./lib/ui.js";
+import { activateLicence, getPremium, premiumLink, removeLicence } from "./lib/licence.js";
+import { $, applyChange, availPill, confirmDialog, connectionHtml, deadlineText, esc, lockedButton, lockedCard, money, num, requestRefresh, toast } from "./lib/ui.js";
 
+let PREMIUM = { premium: true };
 let DATA = null, sortKey = "xp_next", sortDir = -1;
 const H = () => DATA?.horizon ?? 5;
 
@@ -82,7 +84,7 @@ function lineupCard(m) {
     <div class="diff"><div><b>${num(diff.current_xp)}</b> xP now → <b>${num(diff.best_xp)}</b> xP best
       ${better ? `<span class="pill good">+${num(diff.gain)}</span>` : '<span class="pill">already optimal</span>'}
       ${diff.changes.length ? `<ul>${diff.changes.map(c => `<li>${esc(c)}</li>`).join("")}</ul>` : ""}</div>
-      ${better ? '<button class="apply" data-act="lineup">Apply best lineup</button>' : ""}</div>
+      ${better ? (PREMIUM.premium ? '<button class="apply" data-act="lineup">Apply best lineup</button>' : lockedButton("Apply best lineup")) : ""}</div>
     ${DATA.autopilot ? `<p class="muted" style="font-size:12px;margin-bottom:0">Autopilot ${DATA.autopilot.ok ? "last saved" : "last failed"}
       ${new Date(DATA.autopilot.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}: ${esc(DATA.autopilot.message)}</p>` : ""}
   </div>`;
@@ -116,7 +118,7 @@ function renderMyTeam(d) {
     ${lineupCard(m)}
     <div class="grid">
       <div class="card"><h2>Best XI (${esc(l.formation)})</h2>${pitch(l)}</div>
-      <div class="card"><h2>Transfer suggestions</h2>
+      ${!PREMIUM.premium ? lockedCard("Transfer planner", "Single and double transfers for your squad, ranked by expected-points gain, with one-tap transfers.") : `<div class="card"><h2>Transfer suggestions</h2>
         ${m.transfers.length ? m.transfers.map((t, i) => transferRow(t, i, authed)).join("") : '<div class="empty">No affordable upgrades found.</div>'}
         ${(m.double_transfers || []).length ? `<h2 style="margin-top:14px">Best double transfers</h2>` +
           m.double_transfers.map((x, i) => `<div class="transfer"><div>${x.moves.map(t => `<span class="out">▼ ${esc(t.out.name)}</span> → <span class="in">▲ ${esc(t.in.name)}</span>`).join("<br>")}
@@ -124,13 +126,17 @@ function renderMyTeam(d) {
             <div class="num"><b>+${num(x.gain)}</b></div></div>`).join("") : ""}
         <p class="muted" style="font-size:12px">Gain = change in best-XI expected points over the next ${H()} gameweeks.
           ${authed ? "Budgets use your real selling prices. After a transfer the best lineup and captain are saved automatically." : "Public data: budgets use current prices; your selling prices may be lower."}</p>
-      </div>
+      </div>`}
       <div class="card"><h2>Flagged players</h2>${playerTable(m.flagged, ["name", "now_cost", "next_fixture"])}</div>
     </div>`;
 }
 
 function renderDraft(d) {
   const r = d.draft, sec = $("#draft");
+  if (!PREMIUM.premium) {
+    sec.innerHTML = lockedCard("FPL Draft", "Best Draft XI, waiver and free-agent targets, best free agents and the draft-day big board.");
+    return;
+  }
   if (!r) {
     sec.innerHTML = `<div class="card empty">${d.draft_error ? `<div class="warnline">${esc(d.draft_error)}</div><br>` : ""}
       Open <a href="${DRAFT}/team/my" target="_blank">FPL Draft</a> while logged in and your Draft team is picked up automatically —
@@ -186,6 +192,10 @@ function renderDraft(d) {
 
 function renderOptimal(d) {
   const o = d.optimal_squad;
+  if (!PREMIUM.premium) {
+    $("#optimal").innerHTML = lockedCard("Wildcard / Free Hit planner", "The best possible 15 for your budget, solved exactly.");
+    return;
+  }
   if (!o) { $("#optimal").innerHTML = `<div class="card empty">${esc(d.optimal_error || "No data yet.")}</div>`; return; }
   $("#optimal").innerHTML = `
     <div class="card">
@@ -248,21 +258,44 @@ function renderPlayerRows(d) {
   }));
 }
 
+function premiumCard() {
+  const p = PREMIUM, link = premiumLink();
+  if (!p.configured) return "";
+  const until = p.exp ? new Date(p.exp * 1000).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }) : "";
+  return `<div class="card" style="max-width:520px;margin-bottom:14px"><h2>Premium</h2>
+    ${p.premium
+      ? `<p>⭐ <b>Premium active</b> until ${esc(until)}.</p>
+         <p class="muted" style="font-size:12px">Renew in Telegram${link ? ` (<a href="${esc(link)}" target="_blank">open the bot</a>)` : ""}, then send /key and paste the new key here.</p>
+         <button id="lRemove" class="ghost" style="color:var(--ink);border-color:var(--line)">Remove key</button>`
+      : `<p>Unlock <b>apply changes &amp; autopilot</b>, the <b>FPL Draft</b> tab, the <b>transfer planner</b> and
+           <b>deadline alerts in Telegram</b>. Pay with Telegram Stars.</p>
+         ${p.reason ? `<p class="warnline">${esc(p.reason)}</p>` : ""}
+         ${link ? `<p><a class="btnlink" href="${esc(link)}" target="_blank">Get Premium in Telegram ⭐</a></p>` : ""}
+         <div class="filters"><input id="lKey" placeholder="Paste your key (FPLAI1.…)" style="flex:1;min-width:220px">
+           <button id="lActivate">Activate</button></div>`}
+  </div>`;
+}
+
 async function renderSettings() {
   const s = await getSettings();
-  $("#settings").innerHTML = `<div class="card" style="max-width:520px"><h2>Settings</h2>
+  $("#settings").innerHTML = premiumCard() + `<div class="card" style="max-width:520px"><h2>Settings</h2>
     <div class="filters" style="flex-direction:column;align-items:stretch">
       <label>Planning horizon (gameweeks)<br><input id="sHorizon" type="number" min="1" max="10" value="${s.horizon}"></label>
       <label>Optimal squad budget (£m)<br><input id="sBudget" type="number" min="80" max="120" step="0.1" value="${s.budget}"></label>
       <label>Team ID for public mode (used when not logged in)<br><input id="sTeam" inputmode="numeric" value="${esc(s.teamId)}"></label>
       <label>FPL Draft team ID (filled in automatically when you open Draft)<br><input id="sDraft" inputmode="numeric" value="${esc(s.draftEntryId)}"></label>
-      <label class="switch"><input type="checkbox" id="sAuto" ${s.autoLineup ? "checked" : ""}>
-        <span><b>Autopilot lineup</b> — before each deadline, automatically save the best XI, bench order and captain to your FPL team
+      <label class="switch"><input type="checkbox" id="sAuto" ${s.autoLineup ? "checked" : ""} ${PREMIUM.premium ? "" : "disabled"}>
+        <span><b>Autopilot lineup</b>${PREMIUM.premium ? "" : " 🔒 Premium"} — before each deadline, automatically save the best XI, bench order and captain to your FPL team
         whenever it gains at least 0.5 xP. Never makes transfers.</span></label>
       <div><button id="sSave">Save &amp; refresh</button> <button id="sDisconnect" class="ghost" style="color:var(--ink);border-color:var(--line)">Forget FPL login</button></div>
     </div>
     <p class="muted" style="font-size:12px">Your FPL login token is kept in memory only and is sent to fantasy.premierleague.com — nowhere else.
       It's cleared when Chrome closes; just open FPL again to reconnect.</p></div>`;
+  $("#lActivate")?.addEventListener("click", async () => {
+    try { await activateLicence($("#lKey").value); toast("⭐ Premium activated"); }
+    catch (e) { toast(e.message, 5000); }
+  });
+  $("#lRemove")?.addEventListener("click", async () => { await removeLicence(); toast("Key removed"); });
   $("#sSave").addEventListener("click", async () => {
     const horizon = Math.max(1, Math.min(10, parseInt($("#sHorizon").value) || 5));
     const budget = Math.max(80, Math.min(120, parseFloat($("#sBudget").value) || 100));
@@ -271,7 +304,7 @@ async function renderSettings() {
     const draftEntryId = $("#sDraft").value.trim();
     if (draftEntryId && !/^\d+$/.test(draftEntryId)) return toast("Draft team ID should be a number");
     const cur = await getSettings();
-    await saveSettings({ horizon, budget, teamId, draftEntryId, autoLineup: $("#sAuto").checked,
+    await saveSettings({ horizon, budget, teamId, draftEntryId, autoLineup: PREMIUM.premium && $("#sAuto").checked,
                          draftLeagueId: draftEntryId === cur.draftEntryId ? cur.draftLeagueId : "" });
     $("#teamId").value = teamId;
     await doRefresh();
@@ -313,6 +346,7 @@ document.addEventListener("click", async e => {
   const b = e.target.closest("button[data-act]");
   if (!b || !DATA) return;
   const act = b.dataset.act, i = Number(b.dataset.i);
+  if (!PREMIUM.premium) { $(`#tabs button[data-tab="settings"]`)?.click(); return toast("That's a Premium feature."); }
   const m = DATA.my_team, dr = DATA.draft;
   const deadline = `<p class="muted">Deadline: ${esc(deadlineText(DATA.gameweek?.next_deadline))}</p>`;
   if (act === "lineup") {
@@ -353,11 +387,18 @@ $("#refresh").addEventListener("click", async () => {
   await saveSettings({ teamId: team });
   doRefresh();
 });
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && changes.report?.newValue) render(changes.report.newValue);
+chrome.storage.onChanged.addListener(async (changes, area) => {
+  if (area !== "local") return;
+  if ("licenceKey" in changes) {
+    PREMIUM = await getPremium();
+    renderSettings();
+    if (DATA && !changes.report) render(DATA);
+  }
+  if (changes.report?.newValue) render(changes.report.newValue);
 });
 
 (async () => {
+  PREMIUM = await getPremium();
   const s = await getSettings();
   $("#teamId").value = s.teamId;
   if (location.hash) $(`#tabs button[data-tab="${location.hash.slice(1)}"]`)?.click();

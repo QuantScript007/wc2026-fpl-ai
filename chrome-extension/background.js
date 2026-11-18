@@ -4,6 +4,7 @@ import {
   DRAFT, FPL, applyClassicLineup, applyClassicTransfers, applyDraftClaim, applyDraftLineup,
   clearToken, getCachedReport, getSettings, refreshReport, saveDraftToken, saveSettings, saveToken, tokenExpiry,
 } from "./lib/fpl-api.js";
+import { getPremium, requirePremium } from "./lib/licence.js";
 
 const REFRESH_MINUTES = 180;
 const AUTOPILOT_MIN_GAIN = 0.5;
@@ -59,7 +60,7 @@ async function autopilot(report) {
   const s = await getSettings();
   const m = report.my_team, diff = m?.lineup_diff;
   const dl = report.gameweek?.next_deadline ? new Date(report.gameweek.next_deadline) : null;
-  if (!s.autoLineup || applying || m?.source !== "account" || !diff || diff.gain < AUTOPILOT_MIN_GAIN || !dl || dl <= new Date()) return report;
+  if (!s.autoLineup || !(await getPremium()).premium || applying || m?.source !== "account" || !diff || diff.gain < AUTOPILOT_MIN_GAIN || !dl || dl <= new Date()) return report;
   applying = true;
   let log;
   try {
@@ -86,6 +87,7 @@ async function updateBadge(report) {
 // 4) Apply a change the user confirmed in the popup or dashboard.
 async function apply(msg) {
   if (applying) throw new Error("Another change is being saved — wait a moment.");
+  await requirePremium();  // apply changes, transfers and Draft saves are Premium
   applying = true;
   try {
     const { report } = await getCachedReport();

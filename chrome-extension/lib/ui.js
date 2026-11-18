@@ -1,4 +1,5 @@
 // Small DOM/format helpers shared by the popup and dashboard.
+import { premiumLink } from "./licence.js";
 export const $ = (s, el = document) => el.querySelector(s);
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 export const num = (v, d = 1) => v == null || isNaN(v) ? "–" : Number(v).toFixed(d);
@@ -65,3 +66,14 @@ export async function applyChange(msg, button) {
     return !!res?.ok;
   } finally { if (button) { button.disabled = false; button.textContent = label; } }
 }
+
+/** Card shown in place of a Premium feature. */
+export function lockedCard(title, text) {
+  const link = premiumLink();
+  return `<div class="card locked"><h2>🔒 ${esc(title)}</h2><p>${esc(text)}</p>
+    <p>${link ? `<a class="btnlink" href="${esc(link)}" target="_blank">Get Premium in Telegram ⭐</a> ` : ""}
+      <a href="#" data-goto="settings">I have a key</a></p></div>`;
+}
+
+/** Small inline "Premium" button that takes you to Settings. */
+export const lockedButton = (label = "Premium") => `<button class="small ghost lockbtn" data-goto="settings">🔒 ${esc(label)}</button>`;

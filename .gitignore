@@ -222,3 +222,7 @@ data/*.json
 
 # The Chrome extension keeps its JS modules in lib/
 !chrome-extension/lib/
+
+# Stars bot secrets and database
+data/*.pem
+data/*.sqlite3*
